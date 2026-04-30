@@ -66,22 +66,24 @@ def label(value):
 
 @router.post("/read")
 def read_quote_options(order: QuoteRequest):
-    selected_addons = []
+    selected_addon_enums = []
 
-    if order.addons.no_addon:
-        selected_addons.append("No add-on (.ai)")
-    else:
+    if not order.addons.no_addon:
         if order.addons.zipper:
-            selected_addons.append(label(order.addons.zipper))
+            selected_addon_enums.append(order.addons.zipper)
 
         if order.addons.hang_hole:
-            selected_addons.append(label(order.addons.hang_hole))
+            selected_addon_enums.append(order.addons.hang_hole)
 
         if order.addons.other:
-            selected_addons.extend([label(item) for item in order.addons.other])
+            selected_addon_enums.extend(order.addons.other)
 
-        if not selected_addons:
-            selected_addons.append("None")
+    if order.addons.no_addon:
+        selected_addon_labels = ["No add-on (.ai)"]
+    elif selected_addon_enums:
+        selected_addon_labels = [label(item) for item in selected_addon_enums]
+    else:
+        selected_addon_labels = ["None"]
 
     formatted_details = [
         f"Quantity: {order.quantity}",
@@ -92,7 +94,7 @@ def read_quote_options(order: QuoteRequest):
         f"Printing: {label(order.printing)}",
         f"Lamination: {label(order.lamination)}",
         f"Finishing: {label(order.finishing)}",
-        f"Add-ons: {', '.join(selected_addons)}",
+        f"Add-ons: {', '.join(selected_addon_labels)}",
     ]
 
     return {
@@ -106,12 +108,34 @@ def read_quote_options(order: QuoteRequest):
                 "h": order.size.h,
                 "g": order.size.g,
             },
-            "packing_type": label(order.packing_type),
-            "sustainability": label(order.sustainability),
-            "material": label(order.material),
-            "printing": label(order.printing),
-            "lamination": label(order.lamination),
-            "finishing": label(order.finishing),
-            "addons": selected_addons,
+            "packing_type": {
+                "code": order.packing_type.value,
+                "label": label(order.packing_type),
+            },
+            "sustainability": {
+                "code": order.sustainability.value,
+                "label": label(order.sustainability),
+            },
+            "material": {
+                "code": order.material.value,
+                "label": label(order.material),
+            },
+            "printing": {
+                "code": order.printing.value,
+                "label": label(order.printing),
+            },
+            "lamination": {
+                "code": order.lamination.value,
+                "label": label(order.lamination),
+            },
+            "finishing": {
+                "code": order.finishing.value,
+                "label": label(order.finishing),
+            },
+            "addons": {
+                "no_addon": order.addons.no_addon,
+                "codes": [item.value for item in selected_addon_enums],
+                "labels": selected_addon_labels,
+            },
         },
     }
