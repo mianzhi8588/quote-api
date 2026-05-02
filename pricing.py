@@ -1,5 +1,6 @@
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from enum import Enum
+from typing import Optional, TypedDict, TypeAlias, Union
 
 from enums import (
     MaterialEnum,
@@ -12,6 +13,40 @@ from enums import (
 )
 
 
+class PricingStrategyEnum(str, Enum):
+    PER_AREA = "per_area"
+    PER_WIDTH = "per_width"
+    PER_PIECE = "per_piece"
+    FIXED = "fixed"
+    NOT_CONFIGURED = "not_configured"
+
+
+PriceableItem: TypeAlias = Union[
+    MaterialEnum,
+    PrintingEnum,
+    LaminationEnum,
+    FinishingEnum,
+    ZipperEnum,
+    HangHoleEnum,
+    OtherAddonEnum,
+]
+
+
+class PricingRule(TypedDict):
+    strategy: PricingStrategyEnum
+    unit_price: float
+
+
+class PriceBreakdownItem(TypedDict, total=False):
+    category: str
+    code: str
+    label: str
+    strategy: str
+    unit_price: float
+    unit_cost: float
+    configured: bool
+
+
 @dataclass
 class PriceContext:
     area: float
@@ -21,114 +56,114 @@ class PriceContext:
 
 # Demo pricing configuration.
 # These numbers are placeholders and should be replaced by real business rules later.
-PRICING_CONFIG = {
+PRICING_CONFIG: dict[str, dict[PriceableItem, PricingRule]] = {
     "material": {
         MaterialEnum.GENERAL: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.50,
         },
         MaterialEnum.FRESH_KEEP: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.80,
         },
         MaterialEnum.MAX_PROTECTION: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 1.20,
         },
     },
     "printing": {
         PrintingEnum.OUTSIDE: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.10,
         },
         PrintingEnum.DOUBLE_SIDE: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.18,
         },
         PrintingEnum.THREE_SIDE: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.22,
         },
         PrintingEnum.FIVE_SIDE: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.30,
         },
     },
     "lamination": {
         LaminationEnum.MATTE: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.05,
         },
         LaminationEnum.GLOSS: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.05,
         },
         LaminationEnum.SOFT_TOUCH: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.12,
         },
     },
     "finishing": {
         FinishingEnum.NO_FINISHING: {
-            "strategy": "fixed",
+            "strategy": PricingStrategyEnum.FIXED,
             "unit_price": 0.00,
         },
         FinishingEnum.SPOT_UV: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.08,
         },
         FinishingEnum.HOT_FOIL_STAMPING: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.15,
         },
         FinishingEnum.EMBOSS: {
-            "strategy": "per_area",
+            "strategy": PricingStrategyEnum.PER_AREA,
             "unit_price": 0.10,
         },
         FinishingEnum.WINDOW: {
-            "strategy": "per_piece",
+            "strategy": PricingStrategyEnum.PER_PIECE,
             "unit_price": 0.03,
         },
     },
     "zipper": {
         ZipperEnum.ZIPPER: {
-            "strategy": "per_width",
+            "strategy": PricingStrategyEnum.PER_WIDTH,
             "unit_price": 0.15,
         },
         ZipperEnum.CHILD_RESISTANT: {
-            "strategy": "per_width",
+            "strategy": PricingStrategyEnum.PER_WIDTH,
             "unit_price": 0.30,
         },
         ZipperEnum.EASY_TEAR: {
-            "strategy": "per_width",
+            "strategy": PricingStrategyEnum.PER_WIDTH,
             "unit_price": 0.10,
         },
     },
     "hang_hole": {
         HangHoleEnum.ROUND_HOLE: {
-            "strategy": "per_piece",
+            "strategy": PricingStrategyEnum.PER_PIECE,
             "unit_price": 0.01,
         },
         HangHoleEnum.EURO_HOLE: {
-            "strategy": "per_piece",
+            "strategy": PricingStrategyEnum.PER_PIECE,
             "unit_price": 0.02,
         },
     },
     "other_addons": {
         OtherAddonEnum.TEAR_NOTCH: {
-            "strategy": "per_piece",
+            "strategy": PricingStrategyEnum.PER_PIECE,
             "unit_price": 0.02,
         },
         OtherAddonEnum.TEAR_LINE: {
-            "strategy": "per_piece",
+            "strategy": PricingStrategyEnum.PER_PIECE,
             "unit_price": 0.03,
         },
         OtherAddonEnum.VALVE: {
-            "strategy": "per_piece",
+            "strategy": PricingStrategyEnum.PER_PIECE,
             "unit_price": 0.10,
         },
         OtherAddonEnum.SPOUT: {
-            "strategy": "per_piece",
+            "strategy": PricingStrategyEnum.PER_PIECE,
             "unit_price": 0.15,
         },
     },
@@ -136,30 +171,30 @@ PRICING_CONFIG = {
 
 
 def apply_pricing_strategy(
-    strategy: str,
+    strategy: PricingStrategyEnum,
     unit_price: float,
-    context: PriceContext
+    context: PriceContext,
 ) -> float:
-    if strategy == "per_area":
+    if strategy == PricingStrategyEnum.PER_AREA:
         return unit_price * context.area
 
-    if strategy == "per_width":
+    if strategy == PricingStrategyEnum.PER_WIDTH:
         return unit_price * context.width
 
-    if strategy == "per_piece":
+    if strategy == PricingStrategyEnum.PER_PIECE:
         return unit_price
 
-    if strategy == "fixed":
+    if strategy == PricingStrategyEnum.FIXED:
         return unit_price
 
-    raise ValueError(f"Unsupported pricing strategy: {strategy}")
+    raise ValueError(f"Unsupported pricing strategy: {strategy.value}")
 
 
 def calculate_item_cost(
     category: str,
-    item_enum,
-    context: PriceContext
-) -> Optional[Dict[str, Any]]:
+    item_enum: Optional[PriceableItem],
+    context: PriceContext,
+) -> Optional[PriceBreakdownItem]:
     if item_enum is None:
         return None
 
@@ -169,7 +204,7 @@ def calculate_item_cost(
         return {
             "category": category,
             "code": item_enum.value,
-            "strategy": "not_configured",
+            "strategy": PricingStrategyEnum.NOT_CONFIGURED.value,
             "unit_price": 0.0,
             "unit_cost": 0.0,
             "configured": False,
@@ -177,12 +212,16 @@ def calculate_item_cost(
 
     strategy = config["strategy"]
     unit_price = config["unit_price"]
-    unit_cost = apply_pricing_strategy(strategy, unit_price, context)
+    unit_cost = apply_pricing_strategy(
+        strategy=strategy,
+        unit_price=unit_price,
+        context=context,
+    )
 
     return {
         "category": category,
         "code": item_enum.value,
-        "strategy": strategy,
+        "strategy": strategy.value,
         "unit_price": unit_price,
         "unit_cost": round(unit_cost, 6),
         "configured": True,

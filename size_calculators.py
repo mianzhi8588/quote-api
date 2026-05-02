@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from typing import Dict, Any
 
 from enums import PackingTypeEnum
 from schemas import SizeModel
@@ -13,7 +12,7 @@ class SizeCalculationResult:
     front_back_bottom_area: float
     two_side_area: float
     formula_name: str
-    input_size: Dict[str, Any]
+    input_size: dict[str, float]
 
 
 class BaseSizeCalculator(ABC):
