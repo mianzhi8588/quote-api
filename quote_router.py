@@ -1,6 +1,12 @@
 from fastapi import APIRouter, HTTPException
-from size_calculators import get_size_calculator
-from pricing import PriceContext, calculate_item_cost
+
+from size_calculators import (
+    get_product_calculator,
+    AreaCalculator,
+    WidthCalculator,
+)
+
+from pricing import calculate_item_cost
 
 from enums import (
     PackingTypeEnum,
@@ -68,15 +74,20 @@ def label(value):
 
 @router.post("/read")
 def read_quote_options(order: QuoteRequest):
-    # 1. Size validation and area calculation
-    # This uses OOP calculators. Different packing types can have different calculators.
     try:
-        size_calculator = get_size_calculator(order.packing_type, order.size)
-        size_result = size_calculator.calculate_area()
+        calculator = get_product_calculator(order.packing_type, order.size)
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
 
-    # 2. Keep selected add-ons as enum objects for calculation/config matching
+    area_result = None
+    width_value = None
+
+    if isinstance(calculator, AreaCalculator):
+        area_result = calculator.calculate_area()
+
+    if isinstance(calculator, WidthCalculator):
+        width_value = calculator.calculate_width()
+
     selected_addon_enums = []
 
     if not order.addons.no_addon:
@@ -89,21 +100,12 @@ def read_quote_options(order: QuoteRequest):
         if order.addons.other:
             selected_addon_enums.extend(order.addons.other)
 
-    # 3. Convert enum objects to labels only for display
     if order.addons.no_addon:
         selected_addon_labels = ["No add-on (.ai)"]
     elif selected_addon_enums:
         selected_addon_labels = [label(item) for item in selected_addon_enums]
     else:
         selected_addon_labels = ["None"]
-
-    # 4. Pricing configurator demo
-    # Pricing uses enum/code, not labels.
-    price_context = PriceContext(
-        area=size_result.total_area,
-        width=order.size.w,
-        quantity=order.quantity,
-    )
 
     price_breakdown = []
 
@@ -114,32 +116,36 @@ def read_quote_options(order: QuoteRequest):
         ("finishing", order.finishing),
     ]
 
-    for category, item in base_price_items:
-        item_cost = calculate_item_cost(category, item, price_context)
-
-        if item_cost:
-            item_cost["label"] = label(item)
-            price_breakdown.append(item_cost)
-
-    if not order.addons.no_addon:
-        addon_price_items = [
-            ("zipper", order.addons.zipper),
-            ("hang_hole", order.addons.hang_hole),
-        ]
-
-        for category, item in addon_price_items:
-            item_cost = calculate_item_cost(category, item, price_context)
+    try:
+        for category, item in base_price_items:
+            item_cost = calculate_item_cost(category, item, calculator)
 
             if item_cost:
                 item_cost["label"] = label(item)
                 price_breakdown.append(item_cost)
 
-        for addon in order.addons.other:
-            item_cost = calculate_item_cost("other_addons", addon, price_context)
+        if not order.addons.no_addon:
+            addon_price_items = [
+                ("zipper", order.addons.zipper),
+                ("hang_hole", order.addons.hang_hole),
+            ]
 
-            if item_cost:
-                item_cost["label"] = label(addon)
-                price_breakdown.append(item_cost)
+            for category, item in addon_price_items:
+                item_cost = calculate_item_cost(category, item, calculator)
+
+                if item_cost:
+                    item_cost["label"] = label(item)
+                    price_breakdown.append(item_cost)
+
+            for addon in order.addons.other:
+                item_cost = calculate_item_cost("other_addons", addon, calculator)
+
+                if item_cost:
+                    item_cost["label"] = label(addon)
+                    price_breakdown.append(item_cost)
+
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
 
     unit_price = sum(item["unit_cost"] for item in price_breakdown)
     total_price = unit_price * order.quantity
@@ -147,9 +153,9 @@ def read_quote_options(order: QuoteRequest):
     formatted_details = [
         f"Quantity: {order.quantity}",
         f"Size: W:{order.size.w}, H:{order.size.h}, G:{order.size.g}",
-        f"Front/Back/Bottom Area: {size_result.front_back_bottom_area}",
-        f"Two-Side Area: {size_result.two_side_area}",
-        f"Total Area: {size_result.total_area}",
+        f"Area: {area_result.value if area_result else None}",
+        f"Area Components: {area_result.components if area_result else None}",
+        f"Width: {width_value}",
         f"Packing Type: {label(order.packing_type)}",
         f"Sustainability: {label(order.sustainability)}",
         f"Material: {label(order.material)}",
@@ -171,11 +177,13 @@ def read_quote_options(order: QuoteRequest):
                 "code": order.packing_type.value,
                 "label": label(order.packing_type),
             },
-            "formula_name": size_result.formula_name,
-            "input_size": size_result.input_size,
-            "front_back_bottom_area": size_result.front_back_bottom_area,
-            "two_side_area": size_result.two_side_area,
-            "total_area": size_result.total_area,
+            "area": None if area_result is None else {
+                "value": area_result.value,
+                "formula_name": area_result.formula_name,
+                "input_size": area_result.input_size,
+                "components": area_result.components,
+            },
+            "width": width_value,
         },
 
         "pricing": {
@@ -193,9 +201,9 @@ def read_quote_options(order: QuoteRequest):
                 "w": order.size.w,
                 "h": order.size.h,
                 "g": order.size.g,
-                "front_back_bottom_area": size_result.front_back_bottom_area,
-                "two_side_area": size_result.two_side_area,
-                "total_area": size_result.total_area,
+                "area": area_result.value if area_result else None,
+                "area_components": area_result.components if area_result else None,
+                "width": width_value,
             },
 
             "packing_type": {

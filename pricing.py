@@ -1,4 +1,3 @@
-from dataclasses import dataclass
 from enum import Enum
 from typing import Optional, TypedDict, TypeAlias, Union
 
@@ -10,6 +9,12 @@ from enums import (
     ZipperEnum,
     HangHoleEnum,
     OtherAddonEnum,
+)
+
+from size_calculators import (
+    BaseProductCalculator,
+    AreaCalculator,
+    WidthCalculator,
 )
 
 
@@ -47,15 +52,6 @@ class PriceBreakdownItem(TypedDict, total=False):
     configured: bool
 
 
-@dataclass
-class PriceContext:
-    area: float
-    width: float
-    quantity: int
-
-
-# Demo pricing configuration.
-# These numbers are placeholders and should be replaced by real business rules later.
 PRICING_CONFIG: dict[str, dict[PriceableItem, PricingRule]] = {
     "material": {
         MaterialEnum.GENERAL: {
@@ -170,22 +166,31 @@ PRICING_CONFIG: dict[str, dict[PriceableItem, PricingRule]] = {
 }
 
 
-def apply_pricing_strategy(
+def get_metric_for_strategy(
     strategy: PricingStrategyEnum,
-    unit_price: float,
-    context: PriceContext,
+    calculator: BaseProductCalculator,
 ) -> float:
     if strategy == PricingStrategyEnum.PER_AREA:
-        return unit_price * context.area
+        if not isinstance(calculator, AreaCalculator):
+            raise ValueError(
+                "This product calculator does not support area-based pricing."
+            )
+
+        return calculator.calculate_area().value
 
     if strategy == PricingStrategyEnum.PER_WIDTH:
-        return unit_price * context.width
+        if not isinstance(calculator, WidthCalculator):
+            raise ValueError(
+                "This product calculator does not support width-based pricing."
+            )
+
+        return calculator.calculate_width()
 
     if strategy == PricingStrategyEnum.PER_PIECE:
-        return unit_price
+        return 1.0
 
     if strategy == PricingStrategyEnum.FIXED:
-        return unit_price
+        return 1.0
 
     raise ValueError(f"Unsupported pricing strategy: {strategy.value}")
 
@@ -193,7 +198,7 @@ def apply_pricing_strategy(
 def calculate_item_cost(
     category: str,
     item_enum: Optional[PriceableItem],
-    context: PriceContext,
+    calculator: BaseProductCalculator,
 ) -> Optional[PriceBreakdownItem]:
     if item_enum is None:
         return None
@@ -212,11 +217,8 @@ def calculate_item_cost(
 
     strategy = config["strategy"]
     unit_price = config["unit_price"]
-    unit_cost = apply_pricing_strategy(
-        strategy=strategy,
-        unit_price=unit_price,
-        context=context,
-    )
+    metric = get_metric_for_strategy(strategy, calculator)
+    unit_cost = unit_price * metric
 
     return {
         "category": category,
