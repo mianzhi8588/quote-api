@@ -20,7 +20,7 @@ from enums import (
     OtherAddonEnum,
 )
 from schemas import QuoteRequest
-
+from quote_storage import save_quote_price, get_quote_price
 
 router = APIRouter(
     prefix="/quote",
@@ -150,6 +150,13 @@ def read_quote_options(order: QuoteRequest):
     unit_price = sum(item["unit_cost"] for item in price_breakdown)
     total_price = unit_price * order.quantity
 
+    quote_record = save_quote_price(
+          unit_price=unit_price,
+          total_price=total_price,
+          quantity=order.quantity,
+          currency="USD",
+)
+
     formatted_details = [
         f"Quantity: {order.quantity}",
         f"Size: W:{order.size.w}, H:{order.size.h}, G:{order.size.g}",
@@ -163,13 +170,15 @@ def read_quote_options(order: QuoteRequest):
         f"Lamination: {label(order.lamination)}",
         f"Finishing: {label(order.finishing)}",
         f"Add-ons: {', '.join(selected_addon_labels)}",
-        f"Demo Unit Price: {round(unit_price, 4)}",
-        f"Demo Total Price: {round(total_price, 2)}",
+        f"Estimated Unit Price: {round(unit_price, 4)}",
+        f"Estimated Total Price: {round(total_price, 2)}",
     ]
 
     return {
         "status": "success",
-        "message": "Quote options parsed successfully. Pricing is demo/config-driven and should be replaced with final business rules.",
+        "message": "Quote options parsed successfully.",
+         "quote_id": quote_record.quote_id,
+         "price": quote_record.to_price_response(),
         "formatted_details": formatted_details,
 
         "size_calculation": {
@@ -187,7 +196,7 @@ def read_quote_options(order: QuoteRequest):
         },
 
         "pricing": {
-            "is_demo_pricing": True,
+            "pricing_method": "config_based",
             "unit_price": round(unit_price, 6),
             "quantity": order.quantity,
             "total_price": round(total_price, 2),
@@ -242,4 +251,20 @@ def read_quote_options(order: QuoteRequest):
                 "labels": selected_addon_labels,
             },
         },
+    }
+
+@router.get("/{quote_id}")
+def get_quote_by_id(quote_id: str):
+    quote_record = get_quote_price(quote_id)
+
+    if quote_record is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Quote not found or expired."
+        )
+
+    return {
+        "status": "success",
+        "quote_id": quote_record.quote_id,
+        "price": quote_record.to_price_response(),
     }
